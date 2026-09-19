@@ -1298,24 +1298,26 @@ html.iframe-scroll-lock body {
 .slide03-garuda {
   display: block;
   width: auto;
-  height: 96px;
+  height: 116px;
   object-fit: contain;
-  margin: 0 auto 14px;
+  margin: 0 auto 18px;
 }
 
 .slide03-header .slide-title {
-  font-size: 30px;
+  font-size: 38px;
+  line-height: 1.15;
 }
 
 .slide03-header .slide-lead {
   margin-left: auto;
   margin-right: auto;
-  max-width: 560px;
-  font-size: 18px;
+  max-width: 620px;
+  font-size: 22px;
+  line-height: 1.35;
 }
 
 .slide03-list {
-  max-width: 920px;
+  max-width: 960px;
   margin: 0 auto;
   gap: 22px;
   justify-content: flex-start;
@@ -1326,28 +1328,29 @@ html.iframe-scroll-lock body {
 }
 
 .slide03-num {
-  width: 48px;
-  height: 48px;
-  font-size: 18px;
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
   margin-top: 2px;
 }
 
 .slide03-list .item-title {
-  font-size: 22px;
-  margin-bottom: 4px;
+  font-size: 28px;
+  line-height: 1.25;
+  margin-bottom: 6px;
 }
 
 .slide03-nomor {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.02em;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .slide03-tentang {
-  font-size: 18px;
-  line-height: 1.4;
+  font-size: 20px;
+  line-height: 1.45;
   color: var(--navy-700);
   font-weight: 500;
 }

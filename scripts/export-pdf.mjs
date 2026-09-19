@@ -1,5 +1,5 @@
 /**
- * HD vector PDF export via Chromium (same engine as Chrome "Save as PDF").
+ * PDF export using pdf-lib for a consistent, mobile-safe, and large-readable deck.
  *
  * Usage:
  *   npm run export:pdf
@@ -7,13 +7,19 @@
  */
 
 import path from "node:path";
-import { renderVectorPdf, root } from "./lib/exportShared.mjs";
+import { writeFile } from "node:fs/promises";
+import { buildActualPdfBuffer } from "../api/lib/exportDeck.mjs";
+import { root } from "./lib/exportShared.mjs";
 
 const outPath = path.resolve(
   process.argv[2] ?? path.join(root, "Poskamling-Tentrem-Presentasi.pdf"),
 );
 
-renderVectorPdf(outPath).catch((err) => {
-  console.error(err);
+try {
+  const buffer = await buildActualPdfBuffer();
+  await writeFile(outPath, buffer);
+  console.log(`Wrote pdf-lib PDF → ${outPath}`);
+} catch (error) {
+  console.error(error);
   process.exit(1);
-});
+}

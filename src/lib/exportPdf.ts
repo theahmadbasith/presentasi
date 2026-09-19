@@ -49,10 +49,23 @@ export function printToPdf(): Promise<void> {
       resolve();
     };
 
-    window.addEventListener("afterprint", finish);
-    // Some browsers never fire afterprint reliably
+    window.addEventListener("afterprint", finish, { once: true });
+    // Some browsers never fire afterprint reliably, and mobile blockers
+    // reject calls made after async work. We keep the trigger close to the
+    // user gesture and provide a conservative fallback timeout.
     const fallback = window.setTimeout(finish, 60_000);
 
-    window.print();
+    const trigger = () => {
+      try {
+        window.print();
+      } catch (error) {
+        console.warn("Print dialog unavailable:", error);
+        finish();
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(trigger);
+    });
   });
 }

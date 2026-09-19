@@ -587,18 +587,12 @@ export default function App() {
   const exportPDF = async () => {
     setExporting("pdf");
     setPresenting(false);
-    setPdfPrint(true);
-    document.body.classList.add("is-pdf-print");
     try {
-      for (let i = 0; i < 40; i++) {
-        if (pdfRootRef.current) break;
-        await new Promise((r) => window.setTimeout(r, 50));
-      }
-      await waitForPrintAssets(pdfRootRef.current ?? document);
-      await printToPdf();
+      await exportViaDevApi("pdf");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      window.alert(`${msg}\n\nPDF gagal dibuat. Coba ulang atau cek koneksi server.`);
     } finally {
-      document.body.classList.remove("is-pdf-print");
-      setPdfPrint(false);
       setExporting(null);
     }
   };

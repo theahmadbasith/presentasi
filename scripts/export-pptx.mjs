@@ -1,6 +1,5 @@
 /**
- * Vector PPTX export (Canva-class): Chromium PDF → LibreOffice Impress → PPTX.
- * Keeps editable text + vector shapes — not html2canvas screenshots.
+ * PPTX export using pptxgenjs for stable, clear, editable slides.
  *
  * Usage:
  *   npm run export:pptx
@@ -8,25 +7,18 @@
  */
 
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import { convertPdfToPptx, renderVectorPdf, root } from "./lib/exportShared.mjs";
+import { writeFile } from "node:fs/promises";
+import { buildActualPptxBuffer } from "../api/lib/exportDeck.mjs";
+import { root } from "./lib/exportShared.mjs";
 
 const outPath = path.resolve(
   process.argv[2] ?? path.join(root, "Poskamling-Tentrem-Presentasi.pptx"),
 );
 
 async function main() {
-  const skipBuild = process.env.SKIP_BUILD === "1";
-  const workDir = await mkdtemp(path.join(os.tmpdir(), "tentrem-pdf-"));
-  const pdfPath = path.join(workDir, "deck.pdf");
-
-  try {
-    await renderVectorPdf(pdfPath, { skipBuild });
-    await convertPdfToPptx(pdfPath, outPath);
-  } finally {
-    await rm(workDir, { recursive: true, force: true }).catch(() => {});
-  }
+  const buffer = await buildActualPptxBuffer();
+  await writeFile(outPath, buffer);
+  console.log(`Wrote PPTX → ${outPath}`);
 }
 
 main().catch((err) => {

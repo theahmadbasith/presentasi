@@ -6,7 +6,7 @@ const rows = [
   {
     num: "03",
     title: "Penyuluhan P4GN",
-    desc: "Edukasi bahaya narkoba, pencegahan kenakalan remaja, dan Gerakan Desa Bersinar bersama BNN dan Polsek Slahung.",
+    desc: "Dua pilar utama lanjutan ini menekankan ketahanan desa dari bahaya narkoba serta pencegahan kenakalan remaja melalui edukasi bersama BNN dan Polsek Slahung.",
     meta: "Mei–Agustus 2026",
     flip: false,
     accent: true,
@@ -18,7 +18,7 @@ const rows = [
   {
     num: "04",
     title: "Penyuluhan Kebencanaan",
-    desc: "Edukasi kebencanaan, pemetaan jalur evakuasi, dan simulasi kesiapsiagaan Destana bersama BPBD.",
+    desc: "Sementara itu, edukasi kebencanaan, pemetaan jalur evakuasi, dan simulasi kesiapsiagaan Destana bersama BPBD memperkuat kesiapan desa dalam menghadapi risiko bencana.",
     meta: "Juni–Agustus 2026",
     flip: true,
     shots: [
@@ -33,13 +33,6 @@ export default function Slide08PenyuluhanP4gnBencana() {
   return (
     <SlideChrome index={8} total={12} sectionLabel="Penyuluhan · P4GN & Kebencanaan">
       <div className="slide-body-pad">
-        <div className="slide-header" style={{ marginBottom: 12 }}>
-          <h2 className="slide-title anim-up">Penyuluhan P4GN &amp; Kebencanaan</h2>
-          <p className="slide-lead anim-up d1">
-            Dua pilar selanjutnya yaitu, ketahanan desa dari narkoba dan kesiapsiagaan menghadapi bencana.
-          </p>
-        </div>
-
         <div className="doc-stack anim-up d2" style={{ gap: 20 }}>
           {rows.map((r) => (
             <DocPair

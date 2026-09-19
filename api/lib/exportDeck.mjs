@@ -1,107 +1,337 @@
-import chromiumPackage from "@sparticuz/chromium";
-import { execFileSync } from "node:child_process";
-import { chromium as chromiumCore } from "playwright-core";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import PptxGenJS from "pptxgenjs";
-import { jsPDF } from "jspdf";
+import { fileURLToPath } from "node:url";
 
-import { convertPdfToPptx } from "../../scripts/lib/exportShared.mjs";
+import { chromium } from "playwright";
+import PptxGenJS from "pptxgenjs";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+
+import { buildDist, serveDist } from "../../scripts/lib/exportShared.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "../..");
 
 const PAGE_COUNT = 12;
+const SLIDE_WIDTH = 1280;
+const SLIDE_HEIGHT = 720;
 
-async function launchBrowser() {
-  try {
-    return await chromiumCore.launch({
-      args: chromiumPackage.args,
-      executablePath: await chromiumPackage.executablePath(),
-      headless: chromiumPackage.headless,
-    });
-  } catch {
-    const { chromium } = await import("playwright");
-    return chromium.launch({ headless: true });
+function wrapText(font, text, maxWidth, size) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !current) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+    }
   }
+
+  if (current) lines.push(current);
+  return lines.length ? lines : [" "];
 }
 
-async function renderActualDeckPdf() {
-  const target = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}/?pdf=1`
-    : "http://127.0.0.1:4173/?pdf=1";
+function drawWrappedText(page, font, x, y, text, size, color, maxWidth, lineHeight = 1.2, maxLines = 2) {
+  const lines = wrapText(font, text, maxWidth, size).slice(0, maxLines);
+  lines.forEach((line, index) => {
+    page.drawText(line, {
+      x,
+      y: y - index * size * lineHeight,
+      size,
+      font,
+      color,
+    });
+  });
+}
 
-  const browser = await launchBrowser();
-  try {
-    const page = await browser.newPage({
-      viewport: { width: 1280, height: 720 },
-      deviceScaleFactor: 1,
+function drawBulletBlock(page, font, titleFont, x, y, num, title, desc) {
+  const numBoxX = x;
+  const numBoxY = y;
+
+  page.drawRectangle({
+    x: numBoxX,
+    y: numBoxY - 18,
+    width: 36,
+    height: 36,
+    color: rgb(0.11, 0.44, 0.25),
+    borderColor: rgb(0.11, 0.44, 0.25),
+    borderWidth: 1,
+    radius: 18,
+  });
+
+  page.drawText(String(num).padStart(2, "0"), {
+    x: numBoxX + 7,
+    y: numBoxY - 9,
+    size: 14,
+    font: titleFont,
+    color: rgb(1, 1, 1),
+  });
+
+  const itemTitleSize = 17;
+  const itemDescSize = 15.5;
+  const textX = x + 54;
+  const textY = y;
+
+  page.drawText(title, {
+    x: textX,
+    y: textY,
+    size: itemTitleSize,
+    font: titleFont,
+    color: rgb(0.07, 0.12, 0.18),
+  });
+
+  const descLines = wrapText(font, desc, 520, itemDescSize).slice(0, 2);
+  descLines.forEach((line, descIndex) => {
+    page.drawText(line, {
+      x: textX,
+      y: textY - 21 - descIndex * 18,
+      size: itemDescSize,
+      font,
+      color: rgb(0.39, 0.45, 0.53),
+    });
+  });
+
+  return y - 76;
+}
+
+async function buildDeckPdfBuffer() {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle("Poskamling Tentrem Presentasi");
+  pdfDoc.setSubject("PDF export compatible");
+  pdfDoc.setAuthor("Poskamling Tentrem");
+  pdfDoc.setProducer("pdf-lib");
+
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const deckMeta = [
+    {
+      title: "Desa Tugurejo",
+      lead: "Desa Tugurejo berpredikat DESTANA UTAMA Jawa Timur — desa mandiri dan berkapasitas dalam mengelola serta memitigasi risiko bencana.",
+      items: [
+        { num: 1, title: "20 Meter dari Kantor Desa & Posko Satlinmas", desc: "Koordinasi cepat dengan pemdes dan posko saat darurat." },
+        { num: 2, title: "Disamping sempadan Sungai Kalimati", desc: "Titik monitoring untuk Early Warning System debit air sungai." },
+        { num: 3, title: "Akses Utama Desa (Jl. Sekar Pethak)", desc: "Pengawasan akses keluar masuk desa dan mobilisasi." },
+      ],
+    },
+    {
+      title: "Landasan Hukum & Legalitas",
+      lead: "Payung hukum penyelenggaraan Poskamling Tentrem.",
+      items: [
+        { num: 1, title: "Peraturan Bupati Ponorogo", desc: "Tentang Sistem Keamanan Lingkungan Masyarakat" },
+        { num: 2, title: "Surat Edaran Bupati Ponorogo", desc: "No. 300.1.4/KH/3/405.14/2026" },
+        { num: 3, title: "Surat Himbauan Kepala Desa Tugurejo", desc: "No. 140/02/35/.02.01.2001/2026" },
+      ],
+    },
+    {
+      title: "Pembinaan & Pelatihan",
+      lead: "Pembinaan kolaboratif lintas sektor untuk kesiapsiagaan masyarakat.",
+      items: [
+        { num: 1, title: "Babinsa", desc: "Pelatihan keamanan lingkungan dan penguatan koordinasi." },
+        { num: 2, title: "Bhabinkamtibmas", desc: "Orientasi teknis pencegahan gangguan keamanan." },
+        { num: 3, title: "Satgas & Damkar", desc: "Simulasi respons cepat dan penanganan risiko." },
+      ],
+    },
+    {
+      title: "Penyuluhan & Edukasi",
+      lead: "Meningkatkan literasi masyarakat terhadap keselamatan dan kewaspadaan.",
+      items: [
+        { num: 1, title: "Trantibum", desc: "Penyuluhan tertib lingkungan dan keamanan lingkungan." },
+        { num: 2, title: "Posyandu", desc: "Pemantauan dan koordinasi di wilayah RW / RT." },
+        { num: 3, title: "P4GN & Bencana", desc: "Mitigasi dan kesiapsiagaan bencana berbasis komunitas." },
+      ],
+    },
+    {
+      title: "Program Unggulan",
+      lead: "Inisiatif yang menjadi ikon konektivitas dan pelayanan masyarakat.",
+      items: [
+        { num: 1, title: "Portal Digital", desc: "Integrasi data dan informasi layanan publik desa." },
+        { num: 2, title: "Pemberdayaan Jimpitan", desc: "Kebersamaan dalam menjaga keamanan lingkungan." },
+        { num: 3, title: "Kota Tangguh", desc: "Sinergi warga dan aparat untuk desa aman dan damai." },
+      ],
+    },
+    {
+      title: "Inovasi & Teknologi",
+      lead: "Pemanfaatan teknologi untuk memperkuat koordinasi dan respons cepat.",
+      items: [
+        { num: 1, title: "Digital Monitoring", desc: "Pelacakan kegiatan dan situasi lingkungan secara real-time." },
+        { num: 2, title: "Data Terpusat", desc: "Integrasi data kegiatan untuk pengambilan keputusan cepat." },
+        { num: 3, title: "Komunikasi Cepat", desc: "Penyampaian informasi kepada warga tepat waktu." },
+      ],
+    },
+    {
+      title: "Sinergitas Stakeholder",
+      lead: "Kolaborasi multi-pihak membangun sistem keamanan lingkungan yang kuat.",
+      items: [
+        { num: 1, title: "Desa & RT/RW", desc: "Koordinasi fungsi pengawasan dan deteksi dini." },
+        { num: 2, title: "Polres & TNI", desc: "Penguatan keamanan dan respons cepat di wilayah." },
+        { num: 3, title: "Masyarakat", desc: "Peran aktif warga dalam menjaga ketertiban lingkungan." },
+      ],
+    },
+    {
+      title: "Kebersamaan Masyarakat",
+      lead: "Semangat gotong royong menjadi fondasi utama Siskamling Tentrem.",
+      items: [
+        { num: 1, title: "Keamanan Lingkungan", desc: "Jaga wilayah tetap aman, tertib, dan kondusif." },
+        { num: 2, title: "Pelayanan Warga", desc: "Responsif terhadap kebutuhan warga di setiap kejadian." },
+        { num: 3, title: "Kemandirian Desa", desc: "Masyarakat aktif menjaga lingkungan secara bersama-sama." },
+      ],
+    },
+    {
+      title: "Peta & Lokasi",
+      lead: "Lokasi strategis memperkuat efektivitas pengamatan dan deteksi dini.",
+      items: [
+        { num: 1, title: "Jalur Utama", desc: "Akses utama desa menjadi titik pengawasan penting." },
+        { num: 2, title: "Sungai & Batas Desa", desc: "Monitoring terhadap risiko debit air dan pergerakan." },
+        { num: 3, title: "Koordinasi Posko", desc: "Fast response saat dimulai situasi genting." },
+      ],
+    },
+    {
+      title: "Komitmen & Akselerasi",
+      lead: "Keberlanjutan program menjadi prioritas utama dalam pembangunan desa.",
+      items: [
+        { num: 1, title: "Agenda Berkala", desc: "Evaluasi rutin program untuk menjaga efektivitas." },
+        { num: 2, title: "Peningkatan Kapasitas", desc: "Pelatihan terus berkembang sesuai kebutuhan." },
+        { num: 3, title: "Sistem Terintegrasi", desc: "Semua komponen bergerak terkoordinasi dengan baik." },
+      ],
+    },
+    {
+      title: "Penutup",
+      lead: "Poskamling Tentrem hadir sebagai garda terdepan dalam menciptakan keamanan dan kedamaian.",
+      items: [
+        { num: 1, title: "Aman", desc: "Lingkungan tetap kondusif dan tertib." },
+        { num: 2, title: "Tangguh", desc: "Siap menghadapi risiko dan tantangan." },
+        { num: 3, title: "Tentram", desc: "Mewujudkan kehidupan yang harmonis dan damai." },
+      ],
+    },
+  ];
+
+  for (let i = 1; i <= PAGE_COUNT; i += 1) {
+    const page = pdfDoc.addPage([SLIDE_WIDTH, SLIDE_HEIGHT]);
+    const { width, height } = page.getSize();
+
+    page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(0.97, 0.98, 0.99) });
+    page.drawRectangle({ x: 0, y: 0, width, height: 18, color: rgb(0.23, 0.32, 0.47) });
+
+    const meta = deckMeta[i - 1] ?? deckMeta[0];
+
+    page.drawText(`Slide ${i}`, {
+      x: 54,
+      y: height - 58,
+      size: 14,
+      font: regularFont,
+      color: rgb(0.45, 0.52, 0.62),
     });
 
-    await page.goto(target, { waitUntil: "networkidle", timeout: 120_000 });
-    await page.waitForFunction(
-      () => document.documentElement.dataset.pdfReady === "1",
-      { timeout: 120_000 },
-    );
-    await page.waitForTimeout(500);
+    if (i === 1) {
+      page.drawText("Poskamling Tentrem", {
+        x: 72,
+        y: 504,
+        size: 36,
+        font: boldFont,
+        color: rgb(0.06, 0.09, 0.16),
+      });
 
-    return await page.pdf({
-      width: "13.333in",
-      height: "7.5in",
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      page.drawText("Presentasi Lomba PIN Siskamling", {
+        x: 72,
+        y: 452,
+        size: 22,
+        font: regularFont,
+        color: rgb(0.29, 0.35, 0.42),
+      });
+
+      page.drawText("Desa Tugurejo", {
+        x: 72,
+        y: 334,
+        size: 18,
+        font: regularFont,
+        color: rgb(0.39, 0.45, 0.53),
+      });
+      continue;
+    }
+
+    page.drawText(meta.title, {
+      x: 72,
+      y: height - 102,
+      size: 28,
+      font: boldFont,
+      color: rgb(0.06, 0.09, 0.16),
     });
-  } finally {
-    await browser.close();
+
+    drawWrappedText(page, regularFont, 72, height - 144, meta.lead, 18, rgb(0.38, 0.44, 0.52), 520, 1.4, 2);
+
+    let currentY = 470;
+    const listX = 72;
+
+    meta.items.forEach((item) => {
+      currentY = drawBulletBlock(page, regularFont, boldFont, listX, currentY, item.num, item.title, item.desc);
+    });
   }
+
+  return Buffer.from(await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false }));
 }
 
 export async function buildFallbackPdfBuffer() {
-  const pdf = new jsPDF({
-    orientation: "landscape",
-    unit: "pt",
-    format: "a4",
-  });
+  return buildDeckPdfBuffer();
+}
 
-  for (let i = 1; i <= PAGE_COUNT; i += 1) {
-    if (i > 1) pdf.addPage();
+async function buildSlideImagePdfBuffer() {
+  await buildDist();
+  const distDir = path.join(projectRoot, "dist");
+  const { server, base } = await serveDist(distDir);
 
-    const width = pdf.internal.pageSize.getWidth();
-    const height = pdf.internal.pageSize.getHeight();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 2,
+      isMobile: false,
+    });
 
-    pdf.setFillColor(248, 250, 252);
-    pdf.rect(0, 0, width, height, "F");
+    await page.goto(`${base}/?pdf=1`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.documentElement.dataset.pdfReady === "1", null, {
+      timeout: 60_000,
+    });
+    await page.waitForTimeout(300);
 
-    pdf.setDrawColor(148, 163, 184);
-    pdf.line(48, 104, width - 48, 104);
+    const pdfDoc = await PDFDocument.create();
+    const slides = page.locator(".pdf-export-root .slide-wrap");
+    const count = await slides.count();
 
-    pdf.setTextColor(15, 23, 42);
-    pdf.setFontSize(26);
-    pdf.text("Poskamling Tentrem", 48, 52);
+    for (let i = 0; i < count; i += 1) {
+      const slide = slides.nth(i);
+      const buffer = await slide.screenshot({ animations: "disabled" });
+      const image = await pdfDoc.embedPng(buffer);
+      const pageObj = pdfDoc.addPage([SLIDE_WIDTH, SLIDE_HEIGHT]);
+      pageObj.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: SLIDE_WIDTH,
+        height: SLIDE_HEIGHT,
+      });
+    }
 
-    pdf.setFontSize(16);
-    pdf.setTextColor(71, 85, 105);
-    pdf.text(`Slide ${i} / ${PAGE_COUNT}`, 48, 82);
+    if (count === 0) {
+      throw new Error("Tidak ada slide yang bisa di-render untuk PDF.");
+    }
 
-    pdf.setTextColor(15, 23, 42);
-    pdf.setFontSize(20);
-    pdf.text("Presentasi Lomba PIN Siskamling", 48, 150);
-
-    pdf.setFontSize(14);
-    pdf.setTextColor(51, 65, 85);
-    pdf.text("Export fallback Vercel | file siap didownload", 48, 182);
+    return Buffer.from(await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false }));
+  } finally {
+    await browser.close();
+    server.close();
   }
-
-  return Buffer.from(pdf.output("arraybuffer"));
 }
 
 export async function buildActualPdfBuffer() {
   try {
-    const pdfBuffer = await renderActualDeckPdf();
-    if (pdfBuffer && pdfBuffer.length > 0) return Buffer.from(pdfBuffer);
+    return await buildSlideImagePdfBuffer();
   } catch (error) {
-    console.warn("Render actual deck failed, using fallback export:", error instanceof Error ? error.message : error);
+    console.warn("Render slide snapshot PDF gagal, pakai fallback custom PDF:", error);
+    return buildDeckPdfBuffer();
   }
-  return buildFallbackPdfBuffer();
 }
 
 export async function buildFallbackPptxBuffer() {
@@ -111,6 +341,121 @@ export async function buildFallbackPptxBuffer() {
   pptx.company = "Desa Tugurejo";
   pptx.subject = "Presentasi";
   pptx.title = "Poskamling Tentrem";
+  pptx.theme = {
+    colorScheme: {
+      accent1: "0F172A",
+      accent2: "475569",
+      accent3: "EAB308",
+      accent4: "0EA5E9",
+      accent5: "10B981",
+      accent6: "F8FAFC",
+      hyperLink: "0F172A",
+      followedHyperlinkColor: "1E293B",
+    },
+    fontFace: { title: "Arial", body: "Arial" },
+  };
+
+  const deckMeta = [
+    {
+      title: "Desa Tugurejo",
+      lead: "Desa Tugurejo berpredikat DESTANA UTAMA Jawa Timur — desa mandiri dan berkapasitas dalam mengelola serta memitigasi risiko bencana.",
+      items: [
+        { num: 1, title: "20 Meter dari Kantor Desa & Posko Satlinmas", desc: "Koordinasi cepat dengan pemdes dan posko saat darurat." },
+        { num: 2, title: "Disamping sempadan Sungai Kalimati", desc: "Titik monitoring untuk Early Warning System debit air sungai." },
+        { num: 3, title: "Akses Utama Desa (Jl. Sekar Pethak)", desc: "Pengawasan akses keluar masuk desa dan mobilisasi." },
+      ],
+    },
+    {
+      title: "Landasan Hukum & Legalitas",
+      lead: "Payung hukum penyelenggaraan Poskamling Tentrem.",
+      items: [
+        { num: 1, title: "Peraturan Bupati Ponorogo", desc: "Tentang Sistem Keamanan Lingkungan Masyarakat" },
+        { num: 2, title: "Surat Edaran Bupati Ponorogo", desc: "No. 300.1.4/KH/3/405.14/2026" },
+        { num: 3, title: "Surat Himbauan Kepala Desa Tugurejo", desc: "No. 140/02/35/.02.01.2001/2026" },
+      ],
+    },
+    {
+      title: "Pembinaan & Pelatihan",
+      lead: "Pembinaan kolaboratif lintas sektor untuk kesiapsiagaan masyarakat.",
+      items: [
+        { num: 1, title: "Babinsa", desc: "Pelatihan keamanan lingkungan dan penguatan koordinasi." },
+        { num: 2, title: "Bhabinkamtibmas", desc: "Orientasi teknis pencegahan gangguan keamanan." },
+        { num: 3, title: "Satgas & Damkar", desc: "Simulasi respons cepat dan penanganan risiko." },
+      ],
+    },
+    {
+      title: "Penyuluhan & Edukasi",
+      lead: "Meningkatkan literasi masyarakat terhadap keselamatan dan kewaspadaan.",
+      items: [
+        { num: 1, title: "Trantibum", desc: "Penyuluhan tertib lingkungan dan keamanan lingkungan." },
+        { num: 2, title: "Posyandu", desc: "Pemantauan dan koordinasi di wilayah RW / RT." },
+        { num: 3, title: "P4GN & Bencana", desc: "Mitigasi dan kesiapsiagaan bencana berbasis komunitas." },
+      ],
+    },
+    {
+      title: "Program Unggulan",
+      lead: "Inisiatif yang menjadi ikon konektivitas dan pelayanan masyarakat.",
+      items: [
+        { num: 1, title: "Portal Digital", desc: "Integrasi data dan informasi layanan publik desa." },
+        { num: 2, title: "Pemberdayaan Jimpitan", desc: "Kebersamaan dalam menjaga keamanan lingkungan." },
+        { num: 3, title: "Kota Tangguh", desc: "Sinergi warga dan aparat untuk desa aman dan damai." },
+      ],
+    },
+    {
+      title: "Inovasi & Teknologi",
+      lead: "Pemanfaatan teknologi untuk memperkuat koordinasi dan respons cepat.",
+      items: [
+        { num: 1, title: "Digital Monitoring", desc: "Pelacakan kegiatan dan situasi lingkungan secara real-time." },
+        { num: 2, title: "Data Terpusat", desc: "Integrasi data kegiatan untuk pengambilan keputusan cepat." },
+        { num: 3, title: "Komunikasi Cepat", desc: "Penyampaian informasi kepada warga tepat waktu." },
+      ],
+    },
+    {
+      title: "Sinergitas Stakeholder",
+      lead: "Kolaborasi multi-pihak membangun sistem keamanan lingkungan yang kuat.",
+      items: [
+        { num: 1, title: "Desa & RT/RW", desc: "Koordinasi fungsi pengawasan dan deteksi dini." },
+        { num: 2, title: "Polres & TNI", desc: "Penguatan keamanan dan respons cepat di wilayah." },
+        { num: 3, title: "Masyarakat", desc: "Peran aktif warga dalam menjaga ketertiban lingkungan." },
+      ],
+    },
+    {
+      title: "Kebersamaan Masyarakat",
+      lead: "Semangat gotong royong menjadi fondasi utama Siskamling Tentrem.",
+      items: [
+        { num: 1, title: "Keamanan Lingkungan", desc: "Jaga wilayah tetap aman, tertib, dan kondusif." },
+        { num: 2, title: "Pelayanan Warga", desc: "Responsif terhadap kebutuhan warga di setiap kejadian." },
+        { num: 3, title: "Kemandirian Desa", desc: "Masyarakat aktif menjaga lingkungan secara bersama-sama." },
+      ],
+    },
+    {
+      title: "Peta & Lokasi",
+      lead: "Lokasi strategis memperkuat efektivitas pengamatan dan deteksi dini.",
+      items: [
+        { num: 1, title: "Jalur Utama", desc: "Akses utama desa menjadi titik pengawasan penting." },
+        { num: 2, title: "Sungai & Batas Desa", desc: "Monitoring terhadap risiko debit air dan pergerakan." },
+        { num: 3, title: "Koordinasi Posko", desc: "Fast response saat dimulai situasi genting." },
+      ],
+    },
+    {
+      title: "Komitmen & Akselerasi",
+      lead: "Keberlanjutan program menjadi prioritas utama dalam pembangunan desa.",
+      items: [
+        { num: 1, title: "Agenda Berkala", desc: "Evaluasi rutin program untuk menjaga efektivitas." },
+        { num: 2, title: "Peningkatan Kapasitas", desc: "Pelatihan terus berkembang sesuai kebutuhan." },
+        { num: 3, title: "Sistem Terintegrasi", desc: "Semua komponen bergerak terkoordinasi dengan baik." },
+      ],
+    },
+    {
+      title: "Penutup",
+      lead: "Poskamling Tentrem hadir sebagai garda terdepan dalam menciptakan keamanan dan kedamaian.",
+      items: [
+        { num: 1, title: "Aman", desc: "Lingkungan tetap kondusif dan tertib." },
+        { num: 2, title: "Tangguh", desc: "Siap menghadapi risiko dan tantangan." },
+        { num: 3, title: "Tentram", desc: "Mewujudkan kehidupan yang harmonis dan damai." },
+      ],
+    },
+  ];
 
   for (let i = 1; i <= PAGE_COUNT; i += 1) {
     const slide = pptx.addSlide();
@@ -118,43 +463,115 @@ export async function buildFallbackPptxBuffer() {
 
     slide.addText(`Slide ${i} / ${PAGE_COUNT}`, {
       x: 0.6,
-      y: 0.6,
-      w: 3.4,
-      h: 0.6,
+      y: 0.35,
+      w: 2.2,
+      h: 0.35,
+      fontFace: "Arial",
+      fontSize: 11,
+      color: "475569",
+    });
+
+    if (i === 1) {
+      slide.addText("Poskamling Tentrem", {
+        x: 0.8,
+        y: 2.3,
+        w: 7.4,
+        h: 0.8,
+        fontFace: "Arial",
+        fontSize: 26,
+        bold: true,
+        color: "0F172A",
+      });
+
+      slide.addText("Presentasi Lomba PIN Siskamling", {
+        x: 0.8,
+        y: 3.1,
+        w: 7.2,
+        h: 0.5,
+        fontFace: "Arial",
+        fontSize: 16,
+        color: "475569",
+      });
+
+      slide.addText("Desa Tugurejo", {
+        x: 0.8,
+        y: 4.2,
+        w: 4,
+        h: 0.4,
+        fontFace: "Arial",
+        fontSize: 14,
+        color: "475569",
+      });
+      continue;
+    }
+
+    const meta = deckMeta[i - 2] ?? deckMeta[0];
+
+    slide.addText(meta.title, {
+      x: 0.8,
+      y: 0.8,
+      w: 8.8,
+      h: 0.5,
       fontFace: "Arial",
       fontSize: 24,
       bold: true,
       color: "0F172A",
     });
 
-    slide.addText("Poskamling Tentrem", {
-      x: 0.6,
-      y: 1.7,
-      w: 6,
-      h: 0.6,
+    slide.addText(meta.lead, {
+      x: 0.8,
+      y: 1.45,
+      w: 8.2,
+      h: 0.7,
       fontFace: "Arial",
-      fontSize: 18,
+      fontSize: 13,
       color: "475569",
+      margin: 0.02,
+      breakLine: true,
+      fit: "shrink",
     });
 
-    slide.addText("Presentasi Lomba PIN Siskamling", {
-      x: 0.8,
-      y: 3.4,
-      w: 10,
-      h: 0.8,
-      fontFace: "Arial",
-      fontSize: 22,
-      color: "0F172A",
-    });
+    meta.items.forEach((item, index) => {
+      const y = 2.35 + index * 1.35;
+      slide.addText(String(item.num).padStart(2, "0"), {
+        x: 0.8,
+        y,
+        w: 0.5,
+        h: 0.4,
+        fontFace: "Arial",
+        fontSize: 11,
+        bold: true,
+        color: "FFFFFF",
+        fill: { color: "1F4E3C" },
+        align: "center",
+        valign: "middle",
+        margin: 0,
+      });
 
-    slide.addText("Export fallback Vercel", {
-      x: 0.8,
-      y: 5.2,
-      w: 8,
-      h: 0.5,
-      fontFace: "Arial",
-      fontSize: 14,
-      color: "334155",
+      slide.addText(item.title, {
+        x: 1.5,
+        y: y + 0.03,
+        w: 8.8,
+        h: 0.35,
+        fontFace: "Arial",
+        fontSize: 15,
+        bold: true,
+        color: "0F172A",
+        margin: 0,
+        breakLine: false,
+      });
+
+      slide.addText(item.desc, {
+        x: 1.5,
+        y: y - 0.22,
+        w: 8.8,
+        h: 0.35,
+        fontFace: "Arial",
+        fontSize: 11.5,
+        color: "475569",
+        margin: 0,
+        breakLine: false,
+      });
     });
   }
 
@@ -162,41 +579,53 @@ export async function buildFallbackPptxBuffer() {
 }
 
 export async function buildActualPptxBuffer() {
+  await buildDist();
+  const distDir = path.join(projectRoot, "dist");
+  const { server, base } = await serveDist(distDir);
+  const browser = await chromium.launch({ headless: true });
+
   try {
-    const pdfBuffer = await buildActualPdfBuffer();
-    if (!pdfBuffer || pdfBuffer.length === 0) throw new Error("rendered PDF is empty");
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 2,
+      isMobile: false,
+    });
 
-    const hasLibreOffice = (() => {
-      try {
-        execFileSync("soffice", ["--version"], { stdio: "ignore" });
-        return true;
-      } catch {
-        try {
-          execFileSync("libreoffice", ["--version"], { stdio: "ignore" });
-          return true;
-        } catch {
-          return false;
-        }
-      }
-    })();
+    await page.goto(`${base}/?pdf=1`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.documentElement.dataset.pdfReady === "1", null, {
+      timeout: 60_000,
+    });
+    await page.waitForTimeout(300);
 
-    if (!hasLibreOffice) {
-      throw new Error("LibreOffice unavailable");
+    const slides = page.locator(".pdf-export-root .slide-wrap");
+    const count = await slides.count();
+
+    if (count === 0) {
+      throw new Error("Tidak ada slide yang bisa di-render untuk PPTX.");
     }
 
-    const workDir = await mkdtemp(path.join(os.tmpdir(), "tentrem-pptx-"));
-    const pdfPath = path.join(workDir, "deck.pdf");
-    const pptxPath = path.join(workDir, "deck.pptx");
+    const pptx = new PptxGenJS();
+    pptx.layout = "LAYOUT_WIDE";
+    pptx.author = "Poskamling Tentrem";
+    pptx.company = "Desa Tugurejo";
+    pptx.subject = "Presentasi";
+    pptx.title = "Poskamling Tentrem";
 
-    try {
-      await writeFile(pdfPath, pdfBuffer);
-      await convertPdfToPptx(pdfPath, pptxPath);
-      return await readFile(pptxPath);
-    } finally {
-      await rm(workDir, { recursive: true, force: true }).catch(() => {});
+    for (let i = 0; i < count; i += 1) {
+      const slide = pptx.addSlide();
+      const shot = await slides.nth(i).screenshot({ animations: "disabled" });
+      slide.addImage({
+        data: shot,
+        x: 0,
+        y: 0,
+        w: 13.333,
+        h: 7.5,
+      });
     }
-  } catch (error) {
-    console.warn("Render actual PPTX failed, using fallback:", error instanceof Error ? error.message : error);
+
+    return Buffer.from(await pptx.write({ outputType: "nodebuffer" }));
+  } finally {
+    await browser.close();
+    server.close();
   }
-  return buildFallbackPptxBuffer();
 }

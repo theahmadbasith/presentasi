@@ -37,9 +37,9 @@ export default function Slide09Flagship() {
     >
       <div className="slide-body-pad">
         <div className="slide-header" style={{ marginBottom: 28 }}>
-          <h2 className="slide-title anim-up">Program Prioritas &amp; Unggulan Poskamling Tentrem</h2>
+          <h2 className="slide-title anim-up">Program Unggulan Poskamling Tentrem</h2>
           <p className="slide-lead anim-up d1">
-            Tiga program prioritas sebagai penguatan sistem keamanan lingkungan melalui inovasi digital, pemberdayaan masyarakat, dan pemanfaatan kearifan lokal.
+            Tiga program unggulan sebagai penguatan sistem keamanan lingkungan melalui inovasi digital, pemberdayaan masyarakat, dan pemanfaatan kearifan lokal.
           </p>
         </div>
 
