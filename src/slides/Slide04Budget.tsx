@@ -2,18 +2,20 @@ import { DocShot } from "../components/DocPair";
 import { SlideChrome } from "../components/SlideChrome";
 import { assets } from "../data/assets";
 
+const fundingMessage = "Poskamling Tentrem dibiayai secara kolaboratif melalui APBDesa, swadaya warga, serta bantuan instansi terkait dan CSR.";
+
 const fundingSources = [
   {
     title: "Alokasi APBDesa Tugurejo",
     desc: "Anggaran trantibum, perlengkapan Linmas, dan sarana pos.",
   },
   {
-    title: "Swadaya & Jimpitan Warga",
-    desc: "Jimpitan dan iuran warga RT 01 RW 01 dan sumbangan lainnya.",
+    title: "Swadaya Warga",
+    desc: "Jimpitan dan iuran warga RT 01 RW 01 serta sumbangan masyarakat.",
   },
   {
-    title: "Dukungan Instansi Terkait dan CSR",
-    desc: "Bantuan fasilitas, logistik, dan dana dari instansi pemerintah serta sektor swasta.",
+    title: "Bantuan Instansi Terkait dan CSR",
+    desc: "Fasilitas, logistik, dan dukungan dana dari pemerintah serta sektor swasta.",
   },
 ];
 
@@ -25,9 +27,7 @@ export default function Slide04Budget() {
           <div className="slide-col">
             <div className="slide-header">
               <h2 className="slide-title anim-up">Dukungan Anggaran</h2>
-              <p className="slide-lead anim-up d1">
-                Poskamling Tentrem dibiayai secara kolaboratif melalui APBDesa, swadaya warga, serta bantuan instansi terkait dan CSR.
-              </p>
+              <p className="slide-lead anim-up d1">{fundingMessage}</p>
             </div>
 
             <div className="point-list anim-up d2">
