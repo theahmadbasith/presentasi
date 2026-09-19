@@ -6,7 +6,7 @@ const rows = [
   {
     num: "03",
     title: "Penyuluhan P4GN",
-    desc: "Dua pilar utama lanjutan ini menekankan ketahanan desa dari bahaya narkoba serta pencegahan kenakalan remaja melalui edukasi bersama BNN dan Polsek Slahung.",
+    desc: "Edukasi bahaya narkoba, pencegahan kenakalan remaja, dan Gerakan Desa Bersinar bersama BNN dan Polsek Slahung.",
     meta: "Mei–Agustus 2026",
     flip: false,
     accent: true,
@@ -18,7 +18,7 @@ const rows = [
   {
     num: "04",
     title: "Penyuluhan Kebencanaan",
-    desc: "Sementara itu, edukasi kebencanaan, pemetaan jalur evakuasi, dan simulasi kesiapsiagaan Destana bersama BPBD memperkuat kesiapan desa dalam menghadapi risiko bencana.",
+    desc: "Edukasi kebencanaan, pemetaan jalur evakuasi, dan simulasi kesiapsiagaan Destana bersama BPBD.",
     meta: "Juni–Agustus 2026",
     flip: true,
     shots: [

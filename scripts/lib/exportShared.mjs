@@ -1,5 +1,5 @@
 /**
- * Shared helpers for vector PDF / PPTX export (Chromium + LibreOffice).
+ * Shared helpers for vector PDF export.
  */
 
 import { createServer } from "node:http";
@@ -123,85 +123,3 @@ export async function renderVectorPdf(outPath, { skipBuild = false } = {}) {
   }
 }
 
-async function findSoffice() {
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const execFileAsync = promisify(execFile);
-  for (const bin of ["soffice", "libreoffice"]) {
-    try {
-      const { stdout } = await execFileAsync("sh", ["-c", `command -v ${bin}`]);
-      const p = stdout.trim();
-      if (p) return p;
-    } catch {
-      /* next */
-    }
-  }
-  throw new Error(
-    "LibreOffice (soffice) tidak ditemukan. Install libreoffice untuk export PPTX vector.",
-  );
-}
-
-/**
- * PDF → Impress (editable text + vector shapes) → PPTX.
- * Same quality class as opening a born-digital PDF in LibreOffice Impress.
- */
-export async function convertPdfToPptx(pdfPath, pptxPath) {
-  const soffice = await findSoffice();
-  const workDir = await mkdtemp(path.join(os.tmpdir(), "tentrem-pptx-"));
-  const base = "deck";
-  const workPdf = path.join(workDir, `${base}.pdf`);
-  const workOdp = path.join(workDir, `${base}.odp`);
-  const workPptx = path.join(workDir, `${base}.pptx`);
-
-  try {
-    await copyFile(pdfPath, workPdf);
-    console.log("Importing PDF as Impress (teks + shape vector)…");
-    await run(
-      soffice,
-      [
-        "--headless",
-        "--norestore",
-        "--nofirststartwizard",
-        "--infilter=impress_pdf_import",
-        "--convert-to",
-        "odp",
-        "--outdir",
-        workDir,
-        workPdf,
-      ],
-      workDir,
-      { silent: true },
-    );
-
-    if (!existsSync(workOdp)) {
-      throw new Error("LibreOffice gagal membuat ODP dari PDF");
-    }
-
-    console.log("Menulis PPTX Office Open XML…");
-    await run(
-      soffice,
-      [
-        "--headless",
-        "--norestore",
-        "--nofirststartwizard",
-        "--convert-to",
-        "pptx",
-        "--outdir",
-        workDir,
-        workOdp,
-      ],
-      workDir,
-      { silent: true },
-    );
-
-    if (!existsSync(workPptx)) {
-      throw new Error("LibreOffice gagal menulis PPTX");
-    }
-
-    await mkdir(path.dirname(pptxPath), { recursive: true });
-    await copyFile(workPptx, pptxPath);
-    console.log(`Wrote vector PPTX → ${pptxPath}`);
-  } finally {
-    await rm(workDir, { recursive: true, force: true }).catch(() => {});
-  }
-}

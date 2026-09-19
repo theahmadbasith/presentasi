@@ -1,22 +1,15 @@
-import {
-  buildActualPdfBuffer,
-  buildActualPptxBuffer,
-} from "../lib/exportDeck.mjs";
+import { buildActualPdfBuffer } from "../lib/exportDeck.mjs";
 
 export const config = {
   maxDuration: 60,
 };
 
-function getMimeType(kind) {
-  return kind === "pdf"
-    ? "application/pdf"
-    : "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+function getMimeType() {
+  return "application/pdf";
 }
 
-function getFilename(kind) {
-  return kind === "pdf"
-    ? "Poskamling-Tentrem-Presentasi.pdf"
-    : "Poskamling-Tentrem-Presentasi.pptx";
+function getFilename() {
+  return "Poskamling-Tentrem-Presentasi.pdf";
 }
 
 export default async function handler(req, res) {
@@ -26,18 +19,18 @@ export default async function handler(req, res) {
   }
 
   const rawKind = String(req.query?.type ?? req.query?.kind ?? "").toLowerCase();
-  const kind = rawKind === "pptx" ? "pptx" : rawKind === "pdf" ? "pdf" : "";
+  const kind = rawKind === "pdf" ? "pdf" : "";
 
   if (!kind) {
-    res.status(400).json({ error: "Kind export harus pdf atau pptx" });
+    res.status(400).json({ error: "Export hanya tersedia untuk PDF." });
     return;
   }
 
   try {
-    const buffer = kind === "pdf" ? await buildActualPdfBuffer() : await buildActualPptxBuffer();
+    const buffer = await buildActualPdfBuffer();
 
-    res.setHeader("Content-Type", getMimeType(kind));
-    res.setHeader("Content-Disposition", `attachment; filename="${getFilename(kind)}"`);
+    res.setHeader("Content-Type", getMimeType());
+    res.setHeader("Content-Disposition", `attachment; filename="${getFilename()}"`);
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.setHeader("Content-Length", String(buffer.length));
 

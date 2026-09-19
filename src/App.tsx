@@ -206,7 +206,7 @@ export default function App() {
 
   const [presenting, setPresenting] = useState(initial.mode === "present");
   const [current, setCurrent] = useState(initial.index);
-  const [exporting, setExporting] = useState<"pptx" | "pdf" | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | null>(null);
   const [pdfPrint, setPdfPrint] = useState(false);
   const pdfRootRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -521,7 +521,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const exportViaDevApi = async (kind: "pptx" | "pdf") => {
+  const exportViaDevApi = async (kind: "pdf") => {
     const res = await fetch(`/api/export/${kind}`, { method: "POST" });
     if (!res.ok) {
       let message = `Export ${kind.toUpperCase()} gagal (${res.status})`;
@@ -534,27 +534,7 @@ export default function App() {
       throw new Error(message);
     }
     const blob = await res.blob();
-    downloadBlob(
-      blob,
-      kind === "pptx"
-        ? "Poskamling-Tentrem-Presentasi.pptx"
-        : "Poskamling-Tentrem-Presentasi.pdf",
-    );
-  };
-
-  const exportPPTX = async () => {
-    setExporting("pptx");
-    try {
-      // Vector PPTX via Chromium PDF → LibreOffice (dev API / npm run export:pptx)
-      await exportViaDevApi("pptx");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      window.alert(
-        `${msg}\n\nUntuk kualitas penuh (teks + shape vector), jalankan di terminal:\nnpm run export:pptx`,
-      );
-    } finally {
-      setExporting(null);
-    }
+    downloadBlob(blob, "Poskamling-Tentrem-Presentasi.pdf");
   };
 
   // Playwright / ?pdf=1 → layout siap cetak (teks + SVG vector, bukan screenshot)
@@ -648,14 +628,6 @@ export default function App() {
                   >
                     {exporting === "pdf" ? "Siapkan PDF…" : "Export PDF"}
                   </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => void exportPPTX()}
-                    disabled={exporting !== null}
-                    title="PPTX vector"
-                  >
-                    {exporting === "pptx" ? "Menyusun PPTX…" : "Export PPTX"}
-                  </button>
                   <button className="btn btn-primary" onClick={() => void startPresent(current)}>
                     Present Fullscreen
                   </button>
@@ -717,19 +689,6 @@ export default function App() {
                   <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/>
                 </svg>
                 <span>{exporting === "pdf" ? "…" : "PDF"}</span>
-              </button>
-
-              <button
-                className="mobile-nav-btn"
-                onClick={() => void exportPPTX()}
-                disabled={exporting !== null}
-                aria-label="Export PPTX"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <path d="M8 12h4a2 2 0 0 0 0-4H8v8M16 8v8"/>
-                </svg>
-                <span>{exporting === "pptx" ? "…" : "PPTX"}</span>
               </button>
 
               <button

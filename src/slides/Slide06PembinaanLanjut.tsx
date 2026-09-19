@@ -6,7 +6,7 @@ const rows = [
   {
     num: "04",
     title: "Damkar — Penanganan Kebakaran",
-    desc: "Pembinaan teknis lintas sektor ini berlanjut dengan simulasi penanganan dini kebakaran pemukiman dan praktik penggunaan APAR sebagai langkah kesiapsiagaan masyarakat.",
+    desc: "Simulasi penanganan dini kebakaran pemukiman dan praktik penggunaan APAR.",
     meta: "Damkar Kab. Ponorogo",
     flip: false,
     accent: true,
@@ -18,7 +18,7 @@ const rows = [
   {
     num: "05",
     title: "BPBD — Penanganan Bencana",
-    desc: "Pembinaan mitigasi, prosedur evakuasi, dan kesiapsiagaan penanganan bencana terus diperkuat agar masyarakat siap menghadapi situasi darurat secara cepat dan tertib.",
+    desc: "Pembinaan mitigasi, prosedur evakuasi, kesiapsiagaan penanganan bencana.",
     meta: "BPBD Kab. Ponorogo",
     flip: true,
     shots: [
@@ -29,7 +29,7 @@ const rows = [
   {
     num: "06",
     title: "Evaluasi & Pelayanan Satlinmas",
-    desc: "Pada tahapan akhir, dilakukan evaluasi etika aparatur, standar pelayanan, dan pemanfaatan sistem digital Tentrem agar pelayanan kepada masyarakat semakin efektif dan terukur.",
+    desc: "Etika aparatur, standar pelayanan, dan pemanfaatan sistem digital Tentrem.",
     meta: "Pemerintah Desa",
     flip: false,
     accent: true,

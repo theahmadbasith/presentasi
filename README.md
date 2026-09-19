@@ -6,7 +6,7 @@ Presentasi digital 12 slide untuk Lomba PIN Siskamling dengan fokus pada program
 
 - Deck presentasi 12 slide dengan navigasi scroll dan tombol presentasi fullscreen
 - Mode desktop dan mobile yang responsif
-- Export PDF dan PPTX dari UI aplikasi
+- Export PDF dari UI aplikasi
 - API export di folder API untuk runtime Vercel
 - Styling custom untuk tampilan slide asli dengan proporsi 16:9
 - Mockup HP dan laptop untuk slide inovasi dengan scroll guard agar tidak mengganggu deck
@@ -17,8 +17,7 @@ Presentasi digital 12 slide untuk Lomba PIN Siskamling dengan fokus pada program
 - TypeScript
 - Vite
 - Playwright / Chromium
-- jsPDF
-- PptxGenJS
+- pdf-lib
 - Vercel serverless API
 
 ## Menjalankan proyek lokal
@@ -48,13 +47,11 @@ http://localhost:5173
 Aplikasi menyediakan tombol export langsung dari toolbar:
 
 - Export PDF
-- Export PPTX
 
 Untuk runtime Vercel, endpoint export aktif ada di:
 
 ```bash
 /api/export/pdf
-/api/export/pptx
 ```
 
 Dengan konfigurasi yang sudah diatur di `vercel.json` agar route API tidak tertangkap oleh rewrite SPA.
@@ -96,7 +93,6 @@ public/
 
 scripts/
 ├── export-pdf.mjs
-├── export-pptx.mjs
 └── lib/
 ```
 
@@ -115,7 +111,7 @@ Gunakan nama file yang konsisten dan sesuai konteks slide agar struktur asset te
 3. Pastikan framework diatur ke Vite
 4. Deploy otomatis mengikuti branch utama
 
-Pastikan API export tetap dipublikasikan karena file PDF/PPTX dibuat dari route serverless.
+Pastikan API export tetap dipublikasikan karena file PDF dibuat dari route serverless.
 
 ## Catatan proyek
 
